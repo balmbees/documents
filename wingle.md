@@ -1,35 +1,35 @@
-# Vingle FrontEnd는 어떻게 만들어졌는가?
+# Vingle Front-end web server는 어떻게 만들어졌는가?
 ## AWS Lambda를 활용한 마이크로서비스 웹서버 구축
 
-### Writer
+### Writer  
 *Front-End Developer*  
 *Tylor Shin*
 
 ### 배경
-기존의 Vingle Service는 Ruby on Rails를 기반으로 한 Monolithic System으로 구성되어 있었습니다. Web Server와 API Server 로직을 한 서비스에서 모두 담당하고 있는 형태였습니다. 이러한 아키텍쳐는 관리적 측면에서(특히 배포에 있어서) 클라이언트의 작은 스타일 하나가 바뀌거나, 어드민 기능전환조차도 Data 부분과 묶여서 한 번에 관리되어야 하는 단점 및 비효율을 가지고 있었습니다.
+기존의 Vingle Service는 Ruby on Rails를 기반으로 한 Monolithic System으로 구성되어 있었다. Web Server와 API Server 로직을 한 서비스에서 모두 담당하고 있는 형태였다. 이러한 아키텍쳐는 관리적 측면에서(특히 배포에 있어서) 클라이언트의 작은 스타일 하나가 바뀌거나, 어드민 기능전환조차도 Data 부분과 묶여서 한 번에 관리되어야 하는 단점 및 비효율을 가지고 있었다.
 
-Vingle은 그 어떤 서비스보다 사용자 친화적인 서비스이며 클라이언트의 잦은 개선이 많이 일어나는 서비스이기 때문에, 위와 같은 구조에서는 프론트엔드만의 자유로운 배포 및 관리가 불가능했습니다.
+Vingle은 그 어떤 서비스보다 사용자 친화적인 서비스이며 클라이언트의 잦은 개선이 많이 일어나는 서비스이기 때문에, 위와 같은 구조에서는 프론트엔드만의 자유로운 배포 및 관리가 불가능했다.
 
 따라서 저희는 이러한 행태를 개선하고자 새로운 아키텍쳐를 도입하기로 준비했습니다.
+
+이에 최근 엄청난 속도로 부상하고 있는 서버리스 아키텍쳐와 이를 지원하는 프레임워크들([Serverless](https://serverless.com/), [APEX](https://github.com/apex/apex))을 보며 영감을 받았다.
+
+다만, 아직까지는 굳이 프레임워크까지 사용할 일이 없을 것 같아 자체적인 배포 및 관리 환경을 구현하였다.
 
 ### 설계시 요구사항 - Requirements -
 1. Scalability가 신경쓰지 않아도 확보되어야 한다. (더 이상 확장성에 신경쓰고 싶지 않다.)
 2. Static HTML을 Serve 해주어야 한다. (Server-Side Rendering(isomorphic-rendering)이 가능하면 더욱 좋다.)
+2-1. SSR이 안되더라도 SEO는 수행해줘야 한다.
 3. 같은 URL에 접속해도 User의 Desktop \/ Mobile 환경에 따라 다른 Destination에 Serve 해야 한다.
 4. 기존 Rails에서 처리하던 비즈니스 로직들을 계속해서 잘 처리할 수 있어야 한다.
 5. CDN(Akamai)을 최대한 활용할 수 있어야 한다.
 6. 이 모든 것을 만족하면서 1초 안에 최초 렌더링이 완성되어야 한다.
 
-### 배경
-최근 엄청난 속도로 부상하고 있는 서버리스 아키텍쳐와 이를 지원하는 프레임워크들([Serverless](https://serverless.com/), [APEX](https://github.com/apex/apex))을 보며 위 요구사항들을 모두 만족시킬 수 있는 구조를 설계하고자 했다.
-
-다만, 굳이 아직까지는 프레임워크까지 사용할 일이 없어서 자체적인 배포 및 관리 환경을 구현하였다.
-
 ### 설계
 [Image]
-1. 현 Rails (후 Route53)이 API Gateway를 Hit한다.
+1. 현 Rails (후 Route53 or Nginx)이 API Gateway에 index.html Request를 보낸다.
 2. API Gateway가 미리 설정해 둔 stage variables(각 플랫폼의 Active Version, HTTP request headers, meta data)와 User가 Hit한 path를 가지고 Lambda를 invoke한다.
-3. Lambda는 전달받은 데이터들로 User의 플랫폼을 파악한 후 해당하는 플랫폼의 Active version에 해당하는 index.html 파일을 AWS-SDK를 통해 S3로부터 받아온다. (이 때 만약 Lambda Container가 계속 유지되고 있었다면, S3로부터 다운받지 않고 Memory cached된 index.html의 string을 Server한다.)
+3. Lambda는 전달받은 데이터들로 User의 플랫폼을 파악한 후 해당하는 플랫폼의 Active version에 해당하는 index.html 파일을 AWS-SDK나 CDN을 통해 S3로부터 받아온다. (이 때 만약 Lambda Container가 계속 유지되고 있었다면, S3로부터 다운받지 않고 Memory cached된 index.html의 string을 Server한다.)
 4. 받아온 HTML을 text/html로 serve한다.
 5. (클라이언트 사이드) 유저는 index.html을 최초 렌더링하고 CDN으로부터 Front-End bundled JS를 받아온다.
 6. JS를 기반으로 한 Client-Side rendering을 수행한다.
@@ -89,7 +89,7 @@ index.html에서
 
 
 ### 관리
-** Deploy **
+**Deploy**  
 Jenkins를 CI로 사용한다.  
 master branch에 merge되면 자동으로 Jenkins가 Jenkinsfile을 통해 빌드를 시작한다.
 
@@ -115,12 +115,12 @@ master branch에 merge되면 자동으로 Jenkins가 Jenkinsfile을 통해 빌�
 이 마지막 배포는 AWS Console에서 Lambda 항목에서도 할 수 있다.
 하지만 Jenkins를 통해서만 하는 것이 사후 관리에 더 용이하고 추적도 쉬우므로(Jenkins에 기록되지 않은 배포 및 롤백 기록이 있다는 것 자체가 좋다고 생각하지 않기 때문에) 되도록 Jenkins를 통해서만 하는 것을 원칙으로 한다.
 
-** Rollback **
+**Rollback**  
 롤백 역시 간단하며 Jenkins를 활용한 방법과 실제 AWS Console에서 진행하는 방법이 존재한다. 이 경우에도 역시, AWS Console보다는  Jenkins를 최우선으로 한다.  
 사실 Jenkins에서 이전 성공했던 빌드를 찾아 버튼 하나만 눌러주면 바로 해당하는 버젼이 target version이 되어 배포되게 된다.
 즉, 위 전체 배포과정에서 마지막 실제 프로덕션 배포 과정을 다시하는 것이다. (어차피 S3에 압축된 lambda 파일들은 남아있으므로))
 
-** Log && Monotoring **
+**Log && Monotoring**  
 AWS Console에서 Cloudwatch를 통해 확인한다.
 추후에 AWS-SDK를 이용해서 dashboard 같은 것을 만들면 훨씬 체계화 된 모니터링이 가능할 듯 하다.
 
@@ -144,3 +144,6 @@ buildLambdaScript()
 ```
 
 ### 후기
+최근 화두가 되고 있는 Serverless architecture를 실제로 적용해보고 활용해서 실제로 Cost를 절감하고 더 나은 웹서버 구조를 가지게 된 듯 하다. 하지만 아직까지 완벽하게 모든 서비스가 migration이 된 것이 아니고, 실제로 헤비한 트래픽이 걸리는 페이지는 (무서워서) 적용하지 않은 점들, production을 제외한 stage나 demo server를 운용해보지 못한 점들 등 아쉬움 및 개선 사항들이 계속 눈에 밟힌다.
+
+앞으로도 계속해서 발전시켜서 업데이트 되는 사항을 주기적으로 공유하고자 한다.
