@@ -87,6 +87,39 @@ index.html에서
 
 와 같이 로드한다.
 
+
+### 관리
+** Deploy **
+Jenkins를 CI로 사용한다.  
+master branch에 merge되면 자동으로 Jenkins가 Jenkinsfile을 통해 빌드를 시작한다.
+
+빌드는 생각보다 간단하며 다음과 같은 단계들로 구성되어 있다.
+  - checkout master
+  - load Docker image (node6.5.0 + zip package installed)
+  - npm install
+  - run npm build script
+    - transpile ES6 scripts
+    - zip lambda function scripts with required node_modules
+    - add git tag to current deploying branch as current date&time(ex: 2016-10-07T03-01-45.558Z)
+    - push to S3
+    - Notify result to Slack
+
+위의 과정들이 진행되면 압축된 Lambda function 파일들이 각 배포 버젼에 맞게 S3에 올라가게 된다.
+
+마지막 실제 프로덕션 배포 및 적용은 또 다른 Jenkinsfile.deploy.prod 로 관리하며, 하는 일은 다음과 같다.
+  - checkout master
+  - load Docker image(node 6.5.0)
+  - npm install
+  - update Lambda function to target version (reassign S3 bucket & key)
+
+이 마지막 배포는 AWS Console에서 Lambda 항목에서도 할 수 있다.
+하지만 Jenkins를 통해서만 하는 것이 사후 관리에 더 용이하고 추적도 쉬우므로(Jenkins에 기록되지 않은 배포 및 롤백 기록이 있다는 것 자체가 좋다고 생각하지 않기 때문에) 되도록 Jenkins를 통해서만 하는 것을 원칙으로 한다.
+
+** Rollback **
+롤백 역시 간단하며 Jenkins를 활용한 방법과 실제 AWS Console에서 진행하는 방법이 존재한다. 이 경우에도 역시, AWS Console보다는  Jenkins를 최우선으로 한다.  
+사실 Jenkins에서 이전 성공했던 빌드를 찾아 버튼 하나만 눌러주면 바로 해당하는 버젼이 target version이 되어 배포되게 된다.
+즉, 위 전체 배포과정에서 마지막 실제 프로덕션 배포 과정을 다시하는 것이다. (어차피 S3에 압축된 lambda 파일들은 남아있으므로))
+
 ### 결론
 
 
