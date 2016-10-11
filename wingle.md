@@ -16,14 +16,39 @@ Vingle은 그 어떤 서비스보다 사용자 친화적인 서비스이며 클�
 
 다만, 아직까지는 굳이 프레임워크까지 사용할 일이 없을 것 같아 자체적인 배포 및 관리 환경을 구현하였다.
 
+### 유저시나리오
+1. When Bob opens www.vingle.net from his phone, he does get redirected to m.vingle.net.
+
+2. When Bob opens m.vingle.net from his desktop, he does not get redirected to www.vingle.net.
+
+3. When Bob opens the search from the landing page, he gets redirected to www.vingle.net/simple_search
+
+4. When Google bot opens www.vingle.net/posts/12345, it successfully crawls the page with the information about the post.
+
+5. When Ted adds a new feature to Desktop Vingle, he deploys to production in 30 min without having to worry about API servers.
+
+6. When Hayoung wants to check out new features' design, she goes to www.vingle.net?demo-br=new-feature.
+
 ### 설계시 요구사항 - Requirements -
 1. Scalability가 신경쓰지 않아도 확보되어야 한다. (더 이상 확장성에 신경쓰고 싶지 않다.)
 2. Static HTML을 Serve 해주어야 한다. (Server-Side Rendering(isomorphic-rendering)이 가능하면 더욱 좋다.)
 2-1. SSR이 안되더라도 SEO는 수행해줘야 한다.
-3. 같은 URL에 접속해도 User의 Desktop \/ Mobile 환경에 따라 다른 Destination에 Serve 해야 한다.
+3. 모바일만 redirect됨 (www.vingle.net -> m.vingle.net). 반대의 경우는 X
 4. 기존 Rails에서 처리하던 비즈니스 로직들을 계속해서 잘 처리할 수 있어야 한다.
 5. CDN(Akamai)을 최대한 활용할 수 있어야 한다.
 6. 이 모든 것을 만족하면서 1초 안에 최초 렌더링이 완성되어야 한다.
+
+### Not to do
+- mobile -> web redirect
+- SSR
+- Entire desktop migration
+- Changes in mingle
+- Changes in dingle
+- Full scale SEO
+
+### 인터페이스
+migrate이 끝난 페이지들은 `http://<api_gateway_url>/<stage_name>?<query_parameters>`로 nginx가 redirect함.
+좀더 자세한 parameters들은 커트랑 미르랑 정리
 
 ### 설계
 [Image]
@@ -121,8 +146,17 @@ master branch에 merge되면 자동으로 Jenkins가 Jenkinsfile을 통해 빌�
 즉, 위 전체 배포과정에서 마지막 실제 프로덕션 배포 과정을 다시하는 것이다. (어차피 S3에 압축된 lambda 파일들은 남아있으므로))
 
 **Log && Monotoring**  
-AWS Console에서 Cloudwatch를 통해 확인한다.
-추후에 AWS-SDK를 이용해서 dashboard 같은 것을 만들면 훨씬 체계화 된 모니터링이 가능할 듯 하다.
+- Overwatch에 www.vingle.net/simple_search을 연결
+- AWS Console에서 Cloudwatch를 통해 확인한다.
+- 추후에 AWS-SDK를 이용해서 dashboard 같은 것을 만들면 훨씬 체계화 된 모니터링이 가능할 듯 하다.
+
+### 작업 계획
+1. Nginx를 API gateway에 연결
+2. Lambda에서 parameter활용해서 밍글 불러오기
+3. Facebook bot용 page 만들기 (open graph를 rails에서 wingle로 옮김)
+4. demo branch 작업
+5. 모니터링 연결
+6. Landing Page에 링크 변경 
 
 ### 결론
 처음 이 구조를 생각했을 때 가장 걱정했던 것 중 하나는 initial response의 속도 문제였다. 그런데 생각보다 속도가 잘 나와서 크게 걱정하지 않아도 되어서 다행이었다.(초기 index.html로딩까지 200~800ms) 현재 Rails를 통과해서 API Gateway를 찍게 설계되어 있는데, 이 부분을 스킵하고 API Gateway로 넘어간다면 더 빠르게 렌더링 될 수 있다.
